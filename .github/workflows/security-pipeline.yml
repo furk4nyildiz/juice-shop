@@ -46,7 +46,7 @@ jobs:
           path: semgrep.sarif
 
   # 2) Container / FS Scan - Trivy
-  trivy:
+   trivy:
     name: Container/FS Scan - Trivy
     runs-on: ubuntu-latest
 
@@ -54,26 +54,16 @@ jobs:
       - name: Kodu çek
         uses: actions/checkout@v4
 
-      - name: Trivy yükle
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y wget
-          wget -qO trivy.tar.gz https://github.com/aquasecurity/trivy/releases/latest/download/trivy_$(uname -s)_$(uname -m).tar.gz
-          tar -xzf trivy.tar.gz
-          sudo mv trivy*/trivy /usr/local/bin/
-          trivy --version
-
-      - name: Docker imajı var mı kontrol et, yoksa dosya sistemi tara
-        run: |
-          if [ -f Dockerfile ]; then
-            echo "Dockerfile bulundu, imaj oluşturuluyor..."
-            docker build -t scan-target:latest .
-            echo "Trivy image scan çalışıyor..."
-            trivy image --format json --output trivy-report.json scan-target:latest || true
-          else
-            echo "Dockerfile yok, proje klasörünü tarıyoruz (fs scan)..."
-            trivy fs --format json --output trivy-report.json . || true
-          fi
+      # Eğer Dockerfile varsa image scan, yoksa fs scan
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: ${{ (hashFiles('Dockerfile') != '') && 'image' || 'fs' }}
+          image-ref: scan-target:latest
+          scan-ref: .
+          format: 'json'
+          output: 'trivy-report.json'
+          ignore-unfixed: true
 
       - name: Trivy raporunu artifact olarak kaydet
         uses: actions/upload-artifact@v4
